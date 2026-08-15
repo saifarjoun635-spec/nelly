@@ -1,0 +1,69 @@
+.App { min-height: 100vh; }
+
+.ng-container { max-width: 1280px; margin: 0 auto; padding-left: 1.5rem; padding-right: 1.5rem; }
+@media (min-width: 768px) { .ng-container { padding-left: 3rem; padding-right: 3rem; } }
+
+.grain::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.btn-gold {
+  position: relative;
+  border: 1px solid var(--ng-gold);
+  color: var(--ng-gold);
+  background: transparent;
+  border-radius: 999px;
+  padding: 0.95rem 2.2rem;
+  font-family: 'Jost', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  cursor: pointer;
+  overflow: hidden;
+  transition: color 0.5s ease;
+}
+.btn-gold span { position: relative; z-index: 2; }
+.btn-gold::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--ng-gold);
+  transform: translateY(101%);
+  transition: transform 0.5s cubic-bezier(0.22,1,0.36,1);
+  z-index: 1;
+}
+.btn-gold:hover { color: #0d0d0e; }
+.btn-gold:hover::before { transform: translateY(0); }
+
+.btn-gold-solid {
+  border: 1px solid var(--ng-gold);
+  background: var(--ng-gold);
+  color: #0d0d0e;
+  border-radius: 999px;
+  padding: 0.95rem 2.2rem;
+  font-family: 'Jost', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.4s ease, opacity 0.4s ease;
+}
+.btn-gold-solid:hover { background: var(--ng-gold-light); }
+.btn-gold-solid:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.link-underline { position: relative; }
+.link-underline::after {
+  content: '';
+  position: absolute;
+  left: 0; bottom: -4px;
+  width: 0; height: 1px;
+  background: var(--ng-gold);
+  transition: width 0.4s ease;
+}
+.link-underline:hover::after { width: 100%; }
