@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { adminApi, publicApi } from "@/lib/api";
 import { toast } from "sonner";
+import ImageUpload from "@/components/admin/ImageUpload";
 
 function Field({ label, value, onChange, textarea }) {
   return (
@@ -52,6 +53,7 @@ export default function ContentEditor() {
         <Field label="Titre ligne 2" value={c.hero.titleLine2} onChange={(v) => set(["hero", "titleLine2"], v)} />
         <Field label="Mot en doré" value={c.hero.titleAccent} onChange={(v) => set(["hero", "titleAccent"], v)} />
         <div className="sm:col-span-2"><Field label="Sous-titre" textarea value={c.hero.subtitle} onChange={(v) => set(["hero", "subtitle"], v)} /></div>
+        <div className="sm:col-span-2"><ImageUpload label="Photo d'accueil (héro)" value={c.hero.image} onChange={(url) => set(["hero", "image"], url)} /></div>
       </Section>
 
       <Section title="Coordonnées">
@@ -65,13 +67,13 @@ export default function ContentEditor() {
       <Section title="Section « La Clinique »">
         <div className="sm:col-span-2"><Field label="Titre" value={c.cliniqueIntro.title} onChange={(v) => set(["cliniqueIntro", "title"], v)} /></div>
         <div className="sm:col-span-2"><Field label="Texte" textarea value={c.cliniqueIntro.text} onChange={(v) => set(["cliniqueIntro", "text"], v)} /></div>
-        <div className="sm:col-span-2"><Field label="Image (URL)" value={c.cliniqueIntro.image} onChange={(v) => set(["cliniqueIntro", "image"], v)} /></div>
+        <div className="sm:col-span-2"><ImageUpload label="Image de la clinique" value={c.cliniqueIntro.image} onChange={(url) => set(["cliniqueIntro", "image"], url)} /></div>
       </Section>
 
       <Section title="Biographie (Neila Mouelhi)">
         <Field label="Titre" value={c.bio.title} onChange={(v) => set(["bio", "title"], v)} />
         <Field label="Nom" value={c.bio.name} onChange={(v) => set(["bio", "name"], v)} />
-        <div className="sm:col-span-2"><Field label="Photo (URL)" value={c.bio.image} onChange={(v) => set(["bio", "image"], v)} /></div>
+        <div className="sm:col-span-2"><ImageUpload label="Photo de Neila Mouelhi" value={c.bio.image} onChange={(url) => set(["bio", "image"], url)} /></div>
         <div className="sm:col-span-2"><Field label="Texte biographie" textarea value={c.bio.text} onChange={(v) => set(["bio", "text"], v)} /></div>
       </Section>
 

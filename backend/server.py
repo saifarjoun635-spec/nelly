@@ -1,10 +1,11 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Response
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import base64
 from pathlib import Path
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
@@ -13,7 +14,7 @@ from datetime import datetime, timedelta
 import jwt
 from passlib.context import CryptContext
 
-from seed_data import DEFAULT_CONTENT, DEFAULT_SERVICES, DEFAULT_HOURS
+from seed_data import DEFAULT_CONTENT, DEFAULT_SERVICES, DEFAULT_HOURS, DEFAULT_PRODUCTS
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -73,6 +74,48 @@ class HoursUpdate(BaseModel):
 
 class BlockedDatesUpdate(BaseModel):
     dates: List[str]
+
+
+class UploadPayload(BaseModel):
+    dataUrl: str  # data:image/...;base64,xxxx
+
+
+class Product(BaseModel):
+    id: Optional[str] = None
+    name: str
+    description: Optional[str] = ""
+    price: Any = ""
+    image: Optional[str] = ""
+    category: Optional[str] = ""
+    stock: int = 0
+
+
+class OrderItem(BaseModel):
+    productId: str
+    name: str
+    price: Any = ""
+    qty: int = 1
+
+
+class OrderCreate(BaseModel):
+    items: List[OrderItem]
+    total: Any = ""
+    firstName: str
+    lastName: str
+    email: str
+    phone: str
+    address: Optional[str] = ""
+    note: Optional[str] = ""
+
+
+class OrderStatus(BaseModel):
+    status: str
+
+
+class AdminCredsUpdate(BaseModel):
+    currentPassword: str
+    newEmail: Optional[str] = None
+    newPassword: Optional[str] = None
 
 
 # ------------------------- Auth helpers -------------------------
@@ -199,6 +242,29 @@ async def admin_me(email: str = Depends(get_current_admin)):
     return {"email": email}
 
 
+@api_router.post("/admin/change-credentials")
+async def change_credentials(payload: AdminCredsUpdate, email: str = Depends(get_current_admin)):
+    admin = await db.admin_users.find_one({"email": email})
+    if not admin or not pwd_ctx.verify(payload.currentPassword, admin["password"]):
+        raise HTTPException(status_code=401, detail="Mot de passe actuel incorrect")
+    update = {}
+    new_email = email
+    if payload.newEmail:
+        ne = payload.newEmail.lower().strip()
+        existing = await db.admin_users.find_one({"email": ne})
+        if existing and existing["email"] != email:
+            raise HTTPException(status_code=409, detail="Cet email est déjà utilisé")
+        update["email"] = ne
+        new_email = ne
+    if payload.newPassword:
+        if len(payload.newPassword) < 6:
+            raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 6 caractères")
+        update["password"] = pwd_ctx.hash(payload.newPassword)
+    if update:
+        await db.admin_users.update_one({"email": email}, {"$set": update})
+    return {"token": create_token(new_email), "email": new_email}
+
+
 @api_router.get("/admin/appointments")
 async def list_appointments(email: str = Depends(get_current_admin)):
     items = await db.appointments.find().sort("date", 1).to_list(1000)
@@ -256,6 +322,106 @@ async def update_blocked(payload: BlockedDatesUpdate, email: str = Depends(get_c
     return {"ok": True}
 
 
+# ------------------------- Images -------------------------
+@api_router.post("/admin/upload")
+async def upload_image(payload: UploadPayload, email: str = Depends(get_current_admin)):
+    raw = payload.dataUrl
+    try:
+        header, b64 = raw.split(",", 1)
+        content_type = header.split(":")[1].split(";")[0] if ":" in header else "image/jpeg"
+        data = base64.b64decode(b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Image invalide")
+    if len(data) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Image trop lourde (max 8 Mo)")
+    img_id = str(uuid.uuid4())
+    await db.images.insert_one({"_id": img_id, "content_type": content_type, "data": data})
+    return {"id": img_id, "path": f"/api/images/{img_id}"}
+
+
+@api_router.get("/images/{img_id}")
+async def get_image(img_id: str):
+    doc = await db.images.find_one({"_id": img_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Image introuvable")
+    return Response(content=doc["data"], media_type=doc.get("content_type", "image/jpeg"),
+                    headers={"Cache-Control": "public, max-age=31536000"})
+
+
+# ------------------------- Products (public) -------------------------
+@api_router.get("/products")
+async def list_products():
+    items = await db.products.find().sort("createdAt", 1).to_list(500)
+    return [strip_id(i) for i in items]
+
+
+# ------------------------- Orders (public) -------------------------
+@api_router.post("/orders")
+async def create_order(payload: OrderCreate):
+    if not payload.items:
+        raise HTTPException(status_code=400, detail="Panier vide")
+    doc = payload.dict()
+    doc["id"] = str(uuid.uuid4())
+    doc["status"] = "nouvelle"
+    doc["createdAt"] = datetime.utcnow().isoformat()
+    await db.orders.insert_one(dict(doc))
+    # decrement stock (best effort)
+    for it in payload.items:
+        await db.products.update_one(
+            {"id": it.productId, "stock": {"$gte": it.qty}}, {"$inc": {"stock": -it.qty}}
+        )
+    doc.pop("_id", None)
+    return doc
+
+
+# ------------------------- Products (admin) -------------------------
+@api_router.post("/admin/products")
+async def create_product(payload: Product, email: str = Depends(get_current_admin)):
+    doc = payload.dict()
+    doc["id"] = str(uuid.uuid4())
+    doc["createdAt"] = datetime.utcnow().isoformat()
+    await db.products.insert_one(dict(doc))
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.put("/admin/products/{pid}")
+async def update_product(pid: str, payload: Product, email: str = Depends(get_current_admin)):
+    data = payload.dict()
+    data.pop("id", None)
+    res = await db.products.update_one({"id": pid}, {"$set": data})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Produit introuvable")
+    return {"ok": True}
+
+
+@api_router.delete("/admin/products/{pid}")
+async def delete_product(pid: str, email: str = Depends(get_current_admin)):
+    await db.products.delete_one({"id": pid})
+    return {"ok": True}
+
+
+# ------------------------- Orders (admin) -------------------------
+@api_router.get("/admin/orders")
+async def list_orders(email: str = Depends(get_current_admin)):
+    items = await db.orders.find().sort("createdAt", -1).to_list(1000)
+    return [strip_id(i) for i in items]
+
+
+@api_router.patch("/admin/orders/{oid}")
+async def update_order(oid: str, payload: OrderStatus, email: str = Depends(get_current_admin)):
+    res = await db.orders.update_one({"id": oid}, {"$set": {"status": payload.status}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Commande introuvable")
+    return {"ok": True}
+
+
+@api_router.delete("/admin/orders/{oid}")
+async def delete_order(oid: str, email: str = Depends(get_current_admin)):
+    await db.orders.delete_one({"id": oid})
+    return {"ok": True}
+
+
 # ------------------------- Seeding -------------------------
 @app.on_event("startup")
 async def seed():
@@ -271,6 +437,8 @@ async def seed():
         await db.site.insert_one({"_id": "services", "categories": DEFAULT_SERVICES})
     if not await db.site.find_one({"_id": "hours"}):
         await db.site.insert_one({"_id": "hours", "hours": DEFAULT_HOURS})
+    if await db.products.count_documents({}) == 0:
+        await db.products.insert_many([dict(p) for p in DEFAULT_PRODUCTS])
     logger.info("Seed complete")
 
 

@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Calendar, Clock, FileText, Sparkles, Trash2, Check, X } from "lucide-react";
+import { LogOut, Calendar, Clock, FileText, Sparkles, Trash2, Check, X, ShoppingBag, Package, KeyRound } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { adminApi, publicApi } from "@/lib/api";
 import { toast } from "sonner";
 import ContentEditor from "@/components/admin/ContentEditor";
 import ServicesEditor from "@/components/admin/ServicesEditor";
+import ProductsEditor from "@/components/admin/ProductsEditor";
+import OrdersView from "@/components/admin/OrdersView";
+import CredentialsEditor from "@/components/admin/CredentialsEditor";
 
 const WEEKDAYS = [
   ["monday", "Lundi"], ["tuesday", "Mardi"], ["wednesday", "Mercredi"],
@@ -14,9 +17,12 @@ const WEEKDAYS = [
 
 const TABS = [
   { id: "rdv", label: "Rendez-vous", icon: Calendar },
+  { id: "commandes", label: "Commandes", icon: ShoppingBag },
+  { id: "boutique", label: "Boutique", icon: Package },
   { id: "dispo", label: "Disponibilités", icon: Clock },
   { id: "contenu", label: "Textes & Contact", icon: FileText },
   { id: "soins", label: "Soins & Prix", icon: Sparkles },
+  { id: "compte", label: "Mon compte", icon: KeyRound },
 ];
 
 const STATUS = {
@@ -145,9 +151,12 @@ export default function AdminDashboard() {
           ))}
         </div>
         {tab === "rdv" && <Appointments />}
+        {tab === "commandes" && <OrdersView />}
+        {tab === "boutique" && <ProductsEditor />}
         {tab === "dispo" && <Availability />}
         {tab === "contenu" && <ContentEditor />}
         {tab === "soins" && <ServicesEditor />}
+        {tab === "compte" && <CredentialsEditor />}
       </div>
     </div>
   );

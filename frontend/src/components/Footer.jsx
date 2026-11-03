@@ -19,6 +19,7 @@ export default function Footer({ contact }) {
             <ul className="space-y-3 text-sm text-[#efe9e0]/75">
               <li><Link to="/" className="link-underline">Accueil</Link></li>
               <li><Link to="/soins" className="link-underline">Soins</Link></li>
+              <li><Link to="/boutique" className="link-underline">Boutique</Link></li>
               <li><Link to="/la-clinique" className="link-underline">La Clinique</Link></li>
               <li><Link to="/admin" className="link-underline text-[#9a938a]">Espace Admin</Link></li>
             </ul>

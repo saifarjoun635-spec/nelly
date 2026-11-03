@@ -227,3 +227,55 @@ DEFAULT_HOURS = {
     "saturday": {"open": True, "start": "10:00", "end": "20:00"},
     "sunday": {"open": True, "start": "10:00", "end": "20:00"},
 }
+
+import uuid as _uuid
+
+
+def _p(name, description, price, image, category, stock):
+    return {
+        "id": str(_uuid.uuid4()),
+        "name": name,
+        "description": description,
+        "price": price,
+        "image": image,
+        "category": category,
+        "stock": stock,
+        "createdAt": "2025-07-01T00:00:00",
+    }
+
+
+DEFAULT_PRODUCTS = [
+    _p(
+        "Sérum Éclat Acide Hyaluronique",
+        "Sérum hydratant intense à l'acide hyaluronique pour repulper et illuminer la peau au quotidien.",
+        "89 $",
+        "https://images.unsplash.com/photo-1783472960090-4ae8e9b3efd9?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000",
+        "Sérums",
+        12,
+    ),
+    _p(
+        "Crème Nutritive Régénérante",
+        "Soin de nuit riche qui nourrit et régénère la peau pour un teint reposé et lumineux au réveil.",
+        "75 $",
+        "https://images.unsplash.com/photo-1631438420064-8f1b2b52b2e6?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000",
+        "Crèmes",
+        8,
+    ),
+    _p(
+        "Coffret Soin Signature",
+        "Une sélection raffinée de nos essentiels beauté, présentée dans un écrin élégant. Idéal en cadeau.",
+        "180 $",
+        "https://images.unsplash.com/photo-1632452479455-e3d5e3159b63?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000",
+        "Coffrets",
+        5,
+    ),
+    _p(
+        "Fluide Protecteur SPF 50",
+        "Protection solaire haute performance à la texture légère, invisible et non grasse pour un usage quotidien.",
+        "45 $",
+        "https://images.unsplash.com/photo-1748543668646-e81cda0890f3?crop=entropy&cs=srgb&fm=jpg&q=85&w=1000",
+        "Protection",
+        20,
+    ),
+]
+

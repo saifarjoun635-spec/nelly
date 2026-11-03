@@ -29,8 +29,13 @@ export const AuthProvider = ({ children }) => {
     setEmail(null);
   };
 
+  const applyAuth = (token, newEmail) => {
+    localStorage.setItem("ng_admin_token", token);
+    setEmail(newEmail);
+  };
+
   return (
-    <AuthContext.Provider value={{ email, isAuthed: !!email, loading, login, logout }}>
+    <AuthContext.Provider value={{ email, isAuthed: !!email, loading, login, logout, applyAuth }}>
       {children}
     </AuthContext.Provider>
   );

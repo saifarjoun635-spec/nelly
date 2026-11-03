@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ShoppingBag } from "lucide-react";
 import { useBooking } from "@/components/BookingModal";
+import { useCart } from "@/context/CartContext";
 
 const NAV = [
   { label: "Soins", to: "/soins" },
+  { label: "Boutique", to: "/boutique" },
   { label: "La Clinique", to: "/la-clinique" },
   { label: "Contact", to: "#contact" },
 ];
@@ -15,6 +17,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { openBooking } = useBooking();
+  const { count, openCart } = useCart();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -63,6 +66,12 @@ export default function Navbar() {
         </nav>
 
         <div className="flex items-center gap-4">
+          <button onClick={openCart} aria-label="panier" className="relative text-[#efe9e0]/80 hover:text-gold transition-colors">
+            <ShoppingBag size={20} />
+            {count > 0 && (
+              <span className="absolute -top-2 -right-2 bg-gold text-[#0d0d0e] text-[0.6rem] font-medium w-4 h-4 rounded-full flex items-center justify-center">{count}</span>
+            )}
+          </button>
           <button className="btn-gold hidden sm:block" onClick={() => openBooking()}>
             <span>Prendre rendez-vous</span>
           </button>

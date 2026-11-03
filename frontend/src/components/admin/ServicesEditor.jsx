@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { adminApi, publicApi } from "@/lib/api";
 import { toast } from "sonner";
+import ImageUpload from "@/components/admin/ImageUpload";
 
 export default function ServicesEditor() {
   const [cats, setCats] = useState(null);
@@ -40,7 +41,7 @@ export default function ServicesEditor() {
                   {s.extraPrice !== undefined && (
                     <div className="sm:col-span-2"><label className={lbl}>Prix additionnel</label><input className={inp} value={s.extraPrice || ""} onChange={(e) => update(ci, si, "extraPrice", e.target.value)} /></div>
                   )}
-                  <div className="sm:col-span-2"><label className={lbl}>Image (URL)</label><input className={inp} value={s.image || ""} onChange={(e) => update(ci, si, "image", e.target.value)} /></div>
+                  <div className="sm:col-span-2"><ImageUpload label="Photo du soin" value={s.image} onChange={(url) => update(ci, si, "image", url)} /></div>
                   <div className="sm:col-span-2"><label className={lbl}>Description</label><textarea rows={4} className={inp} value={s.description} onChange={(e) => update(ci, si, "description", e.target.value)} /></div>
                 </div>
                 {s.priceTable && (

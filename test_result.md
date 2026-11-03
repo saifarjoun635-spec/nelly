@@ -161,6 +161,62 @@ backend:
         -working: true
         -agent: "testing"
         -comment: "✅ All admin management endpoints working correctly. GET /api/admin/appointments returns appointment list. PATCH /api/admin/appointments/{id} successfully updates status to 'confirmed'. DELETE /api/admin/appointments/{id} successfully removes appointment. PUT /api/admin/hours successfully sets sunday to closed, verified availability returns empty slots for Sunday, restored successfully. PUT /api/admin/blocked-dates successfully blocks specific date (2025-09-15), verified availability returns empty slots for blocked date. PUT /api/admin/content accepts payload shape {data: {...}}. PUT /api/admin/services accepts payload shape {categories: [...]}."
+  - task: "Image upload and serving"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "POST /api/admin/upload (JWT) accepts {dataUrl:'data:image/png;base64,...'} returns {id, path}. GET /api/images/{id} returns bytes with content-type (public). Test upload small base64 PNG then GET returns 200 image."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ All image upload and serving tests passed (3/3). POST /api/admin/upload without token correctly returns 401. POST /api/admin/upload with valid Bearer token successfully uploads 1x1 PNG base64 and returns {id, path} with path starting with /api/images/. GET /api/images/{id} (public, no auth) returns HTTP 200 with Content-Type starting with 'image/' and valid binary data. All requirements met."
+  - task: "Products CRUD (public list + admin create/update/delete)"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "GET /api/products (public) returns seeded 4 products. POST/PUT/DELETE /api/admin/products (JWT, 401 without token). Verify create returns id, update persists, delete removes."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ All products CRUD tests passed (7/7). GET /api/products (public) returns all 4 seeded products (Sérum Éclat Acide Hyaluronique, Crème Nutritive Régénérante, Coffret Soin Signature, Fluide Protecteur SPF 50) with all required fields (name, price, image, category, stock). POST /api/admin/products without token returns 401. POST /api/admin/products with token successfully creates product and returns id. PUT /api/admin/products/{id} with token updates product fields (tested stock update from 15 to 25) and changes persist (verified via GET /api/products). DELETE /api/admin/products/{id} with token removes product and verified removal via GET /api/products. All CRUD operations working correctly."
+  - task: "Orders (public create + admin manage) + stock decrement"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "POST /api/orders (public) with items[] creates status 'nouvelle' and decrements product stock. GET /api/admin/orders (JWT) lists newest first. PATCH status, DELETE. Verify stock decreases after ordering."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ All orders and stock decrement tests passed (8/8). POST /api/orders with empty items[] correctly returns 400. POST /api/orders (public, no auth) with items containing 'Sérum Éclat Acide Hyaluronique' (qty=2) successfully creates order with status 'nouvelle' and returns order id. Stock decrement verified: serum stock decreased by exactly 2 units after order creation. GET /api/admin/orders without token returns 401. GET /api/admin/orders with token returns order list sorted newest first (verified created order appears first). PATCH /api/admin/orders/{id} with token successfully updates status to 'traitée'. DELETE /api/admin/orders/{id} with token successfully removes order. All order management and stock decrement functionality working correctly."
+  - task: "Admin change credentials (email + password)"
+    implemented: true
+    working: true
+    file: "server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: "POST /api/admin/change-credentials (JWT) {currentPassword,newEmail?,newPassword?}. Wrong currentPassword->401. On success returns new token+email and login works with new creds. IMPORTANT: restore back to clinique@nellyglam.com / NellyGlam2025! after testing so default login keeps working."
+        -working: true
+        -agent: "testing"
+        -comment: "✅ All admin change credentials tests passed (5/5). POST /api/admin/change-credentials with wrong currentPassword correctly returns 401. POST /api/admin/change-credentials with correct currentPassword and newPassword='TempPass123' successfully returns new token and email. Login with new password verified working. POST /api/admin/change-credentials to restore password back to original (currentPassword='TempPass123', newPassword='NellyGlam2025!') successful. Final login with original credentials (clinique@nellyglam.com / NellyGlam2025!) verified working. CRITICAL: Default admin credentials restored and working correctly."
 
 frontend:
   - task: "Mobile menu (hamburger) opaque background fix"
@@ -209,7 +265,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
 
 test_plan:
   current_focus: []
@@ -226,3 +282,7 @@ agent_communication:
     -message: "Frontend implemented with mobile menu opacity fix, Open Graph meta tags, and full site. Please test: 1) Mobile menu (390x844) - verify opaque background, no hero bleed-through, navigation works. 2) Meta tags - verify og:title, og:image, og:description. 3) Desktop regression (1440x900) - home page, booking flow, admin dashboard."
     -agent: "testing"
     -message: "✅ FRONTEND TESTING COMPLETE - ALL TESTS PASSED. PRIMARY BUG FIXED: Mobile menu (390x844) has fully opaque background (rgb(13,13,14), opacity:1), hero image does NOT bleed through, all menu items visible and clickable, navigation to /soins works. Meta tags verified: document title contains 'Nelly Glam', og:title/og:image/og:description all present with correct content. Desktop regression (1440x900) passed: home page loads correctly, full booking flow works (service selection -> date/time -> form -> success 'Demande envoyée'), admin login successful, dashboard shows all 4 tabs, created appointment appears in admin. No critical issues found. Site is production-ready."
+    -agent: "main"
+    -message: "Boutique features implemented (image upload, products CRUD, orders with stock decrement, admin change credentials). Please test: 1) Image upload (POST /api/admin/upload with/without token, GET /api/images/{id}). 2) Products (GET /api/products for 4 seeded, POST/PUT/DELETE /api/admin/products with/without token). 3) Orders (POST /api/orders with stock decrement, GET/PATCH/DELETE /api/admin/orders, empty items validation). 4) Admin change credentials (wrong password 401, change and restore password flow). Admin: clinique@nellyglam.com / NellyGlam2025!"
+    -agent: "testing"
+    -message: "✅ BOUTIQUE FEATURES TESTING COMPLETE - ALL 25 TESTS PASSED. Image upload: POST /api/admin/upload without token returns 401 ✓, with token uploads 1x1 PNG and returns {id, path} ✓, GET /api/images/{id} serves image with correct content-type ✓. Products: GET /api/products returns all 4 seeded products (Sérum Éclat, Crème Nutritive, Coffret Soin, Fluide SPF 50) with all fields ✓, POST without token returns 401 ✓, POST with token creates product ✓, PUT updates and persists ✓, DELETE removes product ✓. Orders: Empty items returns 400 ✓, POST creates order with status 'nouvelle' ✓, stock decrements by exact qty (tested -2 units) ✓, GET without token returns 401 ✓, GET with token lists newest first ✓, PATCH updates status ✓, DELETE removes order ✓. Admin credentials: Wrong password returns 401 ✓, change password to TempPass123 works ✓, login with new password works ✓, restore to NellyGlam2025! works ✓, final login with original credentials verified ✓. CRITICAL: Default admin credentials (clinique@nellyglam.com / NellyGlam2025!) restored and working. All boutique features production-ready."

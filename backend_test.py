@@ -540,51 +540,601 @@ def test_update_services(token):
     except Exception as e:
         log_test("PUT /api/admin/services", False, str(e))
 
+# ========================= NEW TESTS FOR BOUTIQUE FEATURES =========================
+
+def test_image_upload_with_token(token):
+    """Test POST /api/admin/upload with token - upload a small 1x1 PNG"""
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        # Create a tiny 1x1 PNG base64 (valid PNG)
+        # This is a minimal valid 1x1 transparent PNG
+        tiny_png_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        data_url = f"data:image/png;base64,{tiny_png_base64}"
+        
+        payload = {"dataUrl": data_url}
+        resp = requests.post(f"{BASE_URL}/admin/upload", json=payload, headers=headers, timeout=10)
+        
+        if resp.status_code != 200:
+            log_test("POST /api/admin/upload (with token)", False, f"Status {resp.status_code}: {resp.text}")
+            return None
+        
+        data = resp.json()
+        img_id = data.get("id")
+        img_path = data.get("path")
+        
+        if not img_id or not img_path:
+            log_test("POST /api/admin/upload (with token)", False, "Missing id or path in response")
+            return None
+        
+        if not img_path.startswith("/api/images/"):
+            log_test("POST /api/admin/upload (with token)", False, f"Path doesn't start with /api/images/: {img_path}")
+            return None
+        
+        log_test("POST /api/admin/upload (with token)", True)
+        return img_id
+    except Exception as e:
+        log_test("POST /api/admin/upload (with token)", False, str(e))
+        return None
+
+def test_image_upload_without_token():
+    """Test POST /api/admin/upload without token returns 401"""
+    try:
+        tiny_png_base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        data_url = f"data:image/png;base64,{tiny_png_base64}"
+        
+        payload = {"dataUrl": data_url}
+        resp = requests.post(f"{BASE_URL}/admin/upload", json=payload, timeout=10)
+        
+        if resp.status_code != 401:
+            log_test("POST /api/admin/upload (no token 401)", False, f"Expected 401, got {resp.status_code}")
+            return
+        
+        log_test("POST /api/admin/upload (no token 401)", True)
+    except Exception as e:
+        log_test("POST /api/admin/upload (no token 401)", False, str(e))
+
+def test_image_serving(img_id):
+    """Test GET /api/images/{id} returns image with correct content-type"""
+    if not img_id:
+        log_test("GET /api/images/{id}", False, "No image ID available")
+        return
+    
+    try:
+        resp = requests.get(f"{BASE_URL}/images/{img_id}", timeout=10)
+        
+        if resp.status_code != 200:
+            log_test("GET /api/images/{id}", False, f"Status {resp.status_code}")
+            return
+        
+        content_type = resp.headers.get("Content-Type", "")
+        if not content_type.startswith("image/"):
+            log_test("GET /api/images/{id}", False, f"Content-Type doesn't start with 'image/': {content_type}")
+            return
+        
+        # Check that we got some binary data
+        if len(resp.content) == 0:
+            log_test("GET /api/images/{id}", False, "Empty image data")
+            return
+        
+        log_test("GET /api/images/{id}", True)
+    except Exception as e:
+        log_test("GET /api/images/{id}", False, str(e))
+
+def test_products_list():
+    """Test GET /api/products returns 4 seeded products"""
+    try:
+        resp = requests.get(f"{BASE_URL}/products", timeout=10)
+        
+        if resp.status_code != 200:
+            log_test("GET /api/products", False, f"Status {resp.status_code}")
+            return None
+        
+        products = resp.json()
+        
+        if not isinstance(products, list):
+            log_test("GET /api/products", False, "Response is not a list")
+            return None
+        
+        if len(products) < 4:
+            log_test("GET /api/products", False, f"Expected at least 4 products, got {len(products)}")
+            return None
+        
+        # Check for required seeded products
+        product_names = [p.get("name", "") for p in products]
+        required_products = [
+            "Sérum Éclat Acide Hyaluronique",
+            "Crème Nutritive Régénérante",
+            "Coffret Soin Signature",
+            "Fluide Protecteur SPF 50"
+        ]
+        
+        for req_prod in required_products:
+            if req_prod not in product_names:
+                log_test("GET /api/products", False, f"Missing product: {req_prod}")
+                return None
+        
+        # Check that each product has required fields
+        for prod in products:
+            if not all(key in prod for key in ["name", "price", "image", "category", "stock"]):
+                log_test("GET /api/products", False, f"Product missing required fields: {prod.get('name', 'unknown')}")
+                return None
+        
+        log_test("GET /api/products", True)
+        return products
+    except Exception as e:
+        log_test("GET /api/products", False, str(e))
+        return None
+
+def test_create_product_with_token(token):
+    """Test POST /api/admin/products with token"""
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        payload = {
+            "name": "Masque Hydratant Test",
+            "description": "Un masque hydratant pour les tests",
+            "price": "65 $",
+            "image": "/api/images/test-image",
+            "category": "Soins visage",
+            "stock": 15
+        }
+        
+        resp = requests.post(f"{BASE_URL}/admin/products", json=payload, headers=headers, timeout=10)
+        
+        if resp.status_code != 200:
+            log_test("POST /api/admin/products (with token)", False, f"Status {resp.status_code}: {resp.text}")
+            return None
+        
+        data = resp.json()
+        product_id = data.get("id")
+        
+        if not product_id:
+            log_test("POST /api/admin/products (with token)", False, "No product ID returned")
+            return None
+        
+        log_test("POST /api/admin/products (with token)", True)
+        return product_id
+    except Exception as e:
+        log_test("POST /api/admin/products (with token)", False, str(e))
+        return None
+
+def test_create_product_without_token():
+    """Test POST /api/admin/products without token returns 401"""
+    try:
+        payload = {
+            "name": "Test Product",
+            "description": "Should fail",
+            "price": "50 $",
+            "image": "",
+            "category": "Test",
+            "stock": 10
+        }
+        
+        resp = requests.post(f"{BASE_URL}/admin/products", json=payload, timeout=10)
+        
+        if resp.status_code != 401:
+            log_test("POST /api/admin/products (no token 401)", False, f"Expected 401, got {resp.status_code}")
+            return
+        
+        log_test("POST /api/admin/products (no token 401)", True)
+    except Exception as e:
+        log_test("POST /api/admin/products (no token 401)", False, str(e))
+
+def test_update_product(token, product_id):
+    """Test PUT /api/admin/products/{id} updates and persists"""
+    if not product_id:
+        log_test("PUT /api/admin/products/{id}", False, "No product ID available")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        # Update stock to a new value
+        payload = {
+            "name": "Masque Hydratant Test Updated",
+            "description": "Updated description",
+            "price": "70 $",
+            "image": "/api/images/test-image",
+            "category": "Soins visage",
+            "stock": 25
+        }
+        
+        resp = requests.put(f"{BASE_URL}/admin/products/{product_id}", json=payload, headers=headers, timeout=10)
+        
+        if resp.status_code != 200:
+            log_test("PUT /api/admin/products/{id}", False, f"Status {resp.status_code}: {resp.text}")
+            return
+        
+        # Verify the update persisted by fetching products
+        resp2 = requests.get(f"{BASE_URL}/products", timeout=10)
+        if resp2.status_code != 200:
+            log_test("PUT /api/admin/products/{id} (verify persist)", False, "Failed to fetch products")
+            return
+        
+        products = resp2.json()
+        updated_product = next((p for p in products if p.get("id") == product_id), None)
+        
+        if not updated_product:
+            log_test("PUT /api/admin/products/{id} (verify persist)", False, "Updated product not found")
+            return
+        
+        if updated_product.get("stock") != 25:
+            log_test("PUT /api/admin/products/{id} (verify persist)", False, f"Stock not updated: {updated_product.get('stock')}")
+            return
+        
+        log_test("PUT /api/admin/products/{id}", True)
+        log_test("PUT /api/admin/products/{id} (verify persist)", True)
+    except Exception as e:
+        log_test("PUT /api/admin/products/{id}", False, str(e))
+
+def test_delete_product(token, product_id):
+    """Test DELETE /api/admin/products/{id} removes product"""
+    if not product_id:
+        log_test("DELETE /api/admin/products/{id}", False, "No product ID available")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        resp = requests.delete(f"{BASE_URL}/admin/products/{product_id}", headers=headers, timeout=10)
+        
+        if resp.status_code != 200:
+            log_test("DELETE /api/admin/products/{id}", False, f"Status {resp.status_code}: {resp.text}")
+            return
+        
+        # Verify the product is gone
+        resp2 = requests.get(f"{BASE_URL}/products", timeout=10)
+        if resp2.status_code != 200:
+            log_test("DELETE /api/admin/products/{id} (verify removed)", False, "Failed to fetch products")
+            return
+        
+        products = resp2.json()
+        deleted_product = next((p for p in products if p.get("id") == product_id), None)
+        
+        if deleted_product:
+            log_test("DELETE /api/admin/products/{id} (verify removed)", False, "Product still exists after delete")
+            return
+        
+        log_test("DELETE /api/admin/products/{id}", True)
+        log_test("DELETE /api/admin/products/{id} (verify removed)", True)
+    except Exception as e:
+        log_test("DELETE /api/admin/products/{id}", False, str(e))
+
+def test_orders_and_stock_decrement(token):
+    """Test POST /api/orders creates order and decrements stock"""
+    try:
+        # First, get the current products to find "Sérum Éclat Acide Hyaluronique"
+        resp = requests.get(f"{BASE_URL}/products", timeout=10)
+        if resp.status_code != 200:
+            log_test("POST /api/orders (stock decrement)", False, "Failed to fetch products")
+            return None
+        
+        products = resp.json()
+        serum = next((p for p in products if p.get("name") == "Sérum Éclat Acide Hyaluronique"), None)
+        
+        if not serum:
+            log_test("POST /api/orders (stock decrement)", False, "Sérum Éclat Acide Hyaluronique not found")
+            return None
+        
+        serum_id = serum.get("id")
+        initial_stock = serum.get("stock", 0)
+        
+        # Create an order with qty=2
+        order_payload = {
+            "items": [
+                {
+                    "productId": serum_id,
+                    "name": "Sérum Éclat Acide Hyaluronique",
+                    "price": "89 $",
+                    "qty": 2
+                }
+            ],
+            "total": "178 $",
+            "firstName": "Amélie",
+            "lastName": "Rousseau",
+            "email": "amelie.rousseau@example.com",
+            "phone": "514-555-7890",
+            "address": "123 Rue Sainte-Catherine, Montréal",
+            "note": "Livraison rapide svp"
+        }
+        
+        resp2 = requests.post(f"{BASE_URL}/orders", json=order_payload, timeout=10)
+        
+        if resp2.status_code != 200:
+            log_test("POST /api/orders (create)", False, f"Status {resp2.status_code}: {resp2.text}")
+            return None
+        
+        order = resp2.json()
+        order_id = order.get("id")
+        
+        if not order_id:
+            log_test("POST /api/orders (create)", False, "No order ID returned")
+            return None
+        
+        if order.get("status") != "nouvelle":
+            log_test("POST /api/orders (create)", False, f"Status is {order.get('status')}, expected 'nouvelle'")
+            return None
+        
+        log_test("POST /api/orders (create)", True)
+        
+        # Verify stock decreased by 2
+        resp3 = requests.get(f"{BASE_URL}/products", timeout=10)
+        if resp3.status_code != 200:
+            log_test("POST /api/orders (stock decrement)", False, "Failed to fetch products after order")
+            return order_id
+        
+        products_after = resp3.json()
+        serum_after = next((p for p in products_after if p.get("id") == serum_id), None)
+        
+        if not serum_after:
+            log_test("POST /api/orders (stock decrement)", False, "Serum not found after order")
+            return order_id
+        
+        new_stock = serum_after.get("stock", 0)
+        expected_stock = initial_stock - 2
+        
+        if new_stock != expected_stock:
+            log_test("POST /api/orders (stock decrement)", False, f"Stock is {new_stock}, expected {expected_stock}")
+            return order_id
+        
+        log_test("POST /api/orders (stock decrement)", True)
+        return order_id
+    except Exception as e:
+        log_test("POST /api/orders", False, str(e))
+        return None
+
+def test_orders_empty_items():
+    """Test POST /api/orders with empty items returns 400"""
+    try:
+        payload = {
+            "items": [],
+            "total": "0 $",
+            "firstName": "Test",
+            "lastName": "User",
+            "email": "test@example.com",
+            "phone": "514-555-0000"
+        }
+        
+        resp = requests.post(f"{BASE_URL}/orders", json=payload, timeout=10)
+        
+        if resp.status_code != 400:
+            log_test("POST /api/orders (empty items 400)", False, f"Expected 400, got {resp.status_code}")
+            return
+        
+        log_test("POST /api/orders (empty items 400)", True)
+    except Exception as e:
+        log_test("POST /api/orders (empty items 400)", False, str(e))
+
+def test_admin_orders_list_without_token():
+    """Test GET /api/admin/orders without token returns 401"""
+    try:
+        resp = requests.get(f"{BASE_URL}/admin/orders", timeout=10)
+        
+        if resp.status_code != 401:
+            log_test("GET /api/admin/orders (no token 401)", False, f"Expected 401, got {resp.status_code}")
+            return
+        
+        log_test("GET /api/admin/orders (no token 401)", True)
+    except Exception as e:
+        log_test("GET /api/admin/orders (no token 401)", False, str(e))
+
+def test_admin_orders_list_with_token(token, order_id):
+    """Test GET /api/admin/orders with token lists orders (newest first)"""
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        resp = requests.get(f"{BASE_URL}/admin/orders", headers=headers, timeout=10)
+        
+        if resp.status_code != 200:
+            log_test("GET /api/admin/orders (with token)", False, f"Status {resp.status_code}: {resp.text}")
+            return
+        
+        orders = resp.json()
+        
+        if not isinstance(orders, list):
+            log_test("GET /api/admin/orders (with token)", False, "Response is not a list")
+            return
+        
+        # Check that our order is in the list (should be first since newest)
+        if order_id and len(orders) > 0:
+            first_order = orders[0]
+            if first_order.get("id") != order_id:
+                log_test("GET /api/admin/orders (newest first)", False, f"Expected order {order_id} first, got {first_order.get('id')}")
+                return
+            log_test("GET /api/admin/orders (newest first)", True)
+        
+        log_test("GET /api/admin/orders (with token)", True)
+    except Exception as e:
+        log_test("GET /api/admin/orders (with token)", False, str(e))
+
+def test_update_order(token, order_id):
+    """Test PATCH /api/admin/orders/{id} updates status"""
+    if not order_id:
+        log_test("PATCH /api/admin/orders/{id}", False, "No order ID available")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        payload = {"status": "traitée"}
+        
+        resp = requests.patch(f"{BASE_URL}/admin/orders/{order_id}", json=payload, headers=headers, timeout=10)
+        
+        if resp.status_code != 200:
+            log_test("PATCH /api/admin/orders/{id}", False, f"Status {resp.status_code}: {resp.text}")
+            return
+        
+        data = resp.json()
+        if not data.get("ok"):
+            log_test("PATCH /api/admin/orders/{id}", False, "Response not ok")
+            return
+        
+        log_test("PATCH /api/admin/orders/{id}", True)
+    except Exception as e:
+        log_test("PATCH /api/admin/orders/{id}", False, str(e))
+
+def test_delete_order(token, order_id):
+    """Test DELETE /api/admin/orders/{id}"""
+    if not order_id:
+        log_test("DELETE /api/admin/orders/{id}", False, "No order ID available")
+        return
+    
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        
+        resp = requests.delete(f"{BASE_URL}/admin/orders/{order_id}", headers=headers, timeout=10)
+        
+        if resp.status_code != 200:
+            log_test("DELETE /api/admin/orders/{id}", False, f"Status {resp.status_code}: {resp.text}")
+            return
+        
+        data = resp.json()
+        if not data.get("ok"):
+            log_test("DELETE /api/admin/orders/{id}", False, "Response not ok")
+            return
+        
+        log_test("DELETE /api/admin/orders/{id}", True)
+    except Exception as e:
+        log_test("DELETE /api/admin/orders/{id}", False, str(e))
+
+def test_change_credentials_wrong_password(token):
+    """Test POST /api/admin/change-credentials with wrong currentPassword returns 401"""
+    try:
+        headers = {"Authorization": f"Bearer {token}"}
+        payload = {
+            "currentPassword": "WrongPassword123",
+            "newPassword": "NewPass123"
+        }
+        
+        resp = requests.post(f"{BASE_URL}/admin/change-credentials", json=payload, headers=headers, timeout=10)
+        
+        if resp.status_code != 401:
+            log_test("POST /api/admin/change-credentials (wrong password 401)", False, f"Expected 401, got {resp.status_code}")
+            return
+        
+        log_test("POST /api/admin/change-credentials (wrong password 401)", True)
+    except Exception as e:
+        log_test("POST /api/admin/change-credentials (wrong password 401)", False, str(e))
+
+def test_change_credentials_and_restore():
+    """Test POST /api/admin/change-credentials changes password and can be restored"""
+    try:
+        # Step 1: Login with original credentials
+        payload = {"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}
+        resp = requests.post(f"{BASE_URL}/admin/login", json=payload, timeout=10)
+        
+        if resp.status_code != 200:
+            log_test("POST /api/admin/change-credentials (change password)", False, "Failed to login with original credentials")
+            return
+        
+        token1 = resp.json().get("token")
+        
+        # Step 2: Change password to TempPass123
+        headers1 = {"Authorization": f"Bearer {token1}"}
+        change_payload1 = {
+            "currentPassword": ADMIN_PASSWORD,
+            "newPassword": "TempPass123"
+        }
+        
+        resp2 = requests.post(f"{BASE_URL}/admin/change-credentials", json=change_payload1, headers=headers1, timeout=10)
+        
+        if resp2.status_code != 200:
+            log_test("POST /api/admin/change-credentials (change password)", False, f"Status {resp2.status_code}: {resp2.text}")
+            return
+        
+        data2 = resp2.json()
+        new_token = data2.get("token")
+        new_email = data2.get("email")
+        
+        if not new_token or not new_email:
+            log_test("POST /api/admin/change-credentials (change password)", False, "Missing token or email in response")
+            return
+        
+        log_test("POST /api/admin/change-credentials (change password)", True)
+        
+        # Step 3: Verify login works with new password
+        login_payload2 = {"email": ADMIN_EMAIL, "password": "TempPass123"}
+        resp3 = requests.post(f"{BASE_URL}/admin/login", json=login_payload2, timeout=10)
+        
+        if resp3.status_code != 200:
+            log_test("POST /api/admin/change-credentials (verify new password)", False, f"Failed to login with new password: {resp3.status_code}")
+            # Try to restore anyway
+            return
+        
+        token2 = resp3.json().get("token")
+        log_test("POST /api/admin/change-credentials (verify new password)", True)
+        
+        # Step 4: Change password back to original
+        headers2 = {"Authorization": f"Bearer {token2}"}
+        change_payload2 = {
+            "currentPassword": "TempPass123",
+            "newPassword": ADMIN_PASSWORD
+        }
+        
+        resp4 = requests.post(f"{BASE_URL}/admin/change-credentials", json=change_payload2, headers=headers2, timeout=10)
+        
+        if resp4.status_code != 200:
+            log_test("POST /api/admin/change-credentials (restore password)", False, f"Status {resp4.status_code}: {resp4.text}")
+            return
+        
+        log_test("POST /api/admin/change-credentials (restore password)", True)
+        
+        # Step 5: Verify login works with original password
+        login_payload3 = {"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD}
+        resp5 = requests.post(f"{BASE_URL}/admin/login", json=login_payload3, timeout=10)
+        
+        if resp5.status_code != 200:
+            log_test("POST /api/admin/change-credentials (verify restored)", False, f"Failed to login with restored password: {resp5.status_code}")
+            return
+        
+        log_test("POST /api/admin/change-credentials (verify restored)", True)
+    except Exception as e:
+        log_test("POST /api/admin/change-credentials", False, str(e))
+
 def main():
     print("=" * 80)
-    print("CLINIQUE NELLY GLAM - BACKEND API TESTS")
+    print("CLINIQUE NELLY GLAM - BACKEND API TESTS (BOUTIQUE FEATURES)")
     print("=" * 80)
     print(f"Base URL: {BASE_URL}")
     print(f"Admin: {ADMIN_EMAIL}")
     print("=" * 80)
     print()
     
-    # Run all tests in order
-    print("📋 Testing Public Endpoints...")
-    test_public_content()
-    test_public_services()
-    test_public_hours()
-    
-    print("\n📅 Testing Availability & Appointments...")
-    availability_result = test_availability()
-    
-    if availability_result:
-        test_date, test_time = availability_result
-        appt_id = test_create_appointment(test_date, test_time)
-        test_double_booking(test_date, test_time)
-        test_invalid_time_booking(test_date)
-    else:
-        print("⚠️  Skipping appointment tests due to availability test failure")
-        appt_id = None
-    
-    print("\n🔐 Testing Admin Authentication...")
+    # Get admin token first
+    print("🔐 Testing Admin Authentication...")
     token = test_admin_login()
     
-    if token:
-        print("\n🛡️  Testing Protected Endpoints...")
-        test_protected_endpoints(token)
-        
-        print("\n✏️  Testing Admin Appointment Management...")
-        test_update_appointment(token, appt_id)
-        test_delete_appointment(token, appt_id)
-        
-        print("\n⚙️  Testing Admin CMS Updates...")
-        test_update_hours(token)
-        test_blocked_dates(token)
-        test_update_content(token)
-        test_update_services(token)
-    else:
-        print("⚠️  Skipping admin tests due to login failure")
+    if not token:
+        print("⚠️  Cannot proceed without admin token")
+        sys.exit(1)
+    
+    # Test Image Upload & Serving
+    print("\n🖼️  Testing Image Upload & Serving...")
+    test_image_upload_without_token()
+    img_id = test_image_upload_with_token(token)
+    test_image_serving(img_id)
+    
+    # Test Products CRUD
+    print("\n📦 Testing Products CRUD...")
+    products = test_products_list()
+    test_create_product_without_token()
+    product_id = test_create_product_with_token(token)
+    test_update_product(token, product_id)
+    test_delete_product(token, product_id)
+    
+    # Test Orders & Stock Decrement
+    print("\n🛒 Testing Orders & Stock Decrement...")
+    test_orders_empty_items()
+    order_id = test_orders_and_stock_decrement(token)
+    test_admin_orders_list_without_token()
+    test_admin_orders_list_with_token(token, order_id)
+    test_update_order(token, order_id)
+    test_delete_order(token, order_id)
+    
+    # Test Admin Change Credentials
+    print("\n🔑 Testing Admin Change Credentials...")
+    test_change_credentials_wrong_password(token)
+    test_change_credentials_and_restore()
     
     # Print summary
     print("\n" + "=" * 80)
